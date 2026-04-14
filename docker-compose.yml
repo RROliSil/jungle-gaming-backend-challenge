@@ -1,0 +1,124 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jungle-wagering-postgres
+    environment:
+      POSTGRES_USER: jungle
+      POSTGRES_PASSWORD: jungle_secret
+      POSTGRES_DB: jungle_wagering
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jungle -d jungle_wagering"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: jungle-wagering-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - "./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-sqs.sh:ro"
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs list-queues"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: jungle-wagering-keycloak
+    command: ["start-dev"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+
+  wagering-node-1:
+    build: .
+    container_name: jungle-wagering-node-1
+    profiles: ["cluster"]
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      INSTANCE_ID: wagering-node-1
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: jungle
+      DB_PASSWORD: jungle_secret
+      DB_NAME: jungle_wagering
+      SQS_ENDPOINT: http://localstack:4566
+      SQS_WAGER_QUEUE_URL: http://localstack:4566/000000000000/wager-transactions.fifo
+      SQS_WAGER_DLQ_URL: http://localstack:4566/000000000000/wager-transactions-dlq.fifo
+      SQS_EVENTS_QUEUE_URL: http://localstack:4566/000000000000/wagering-events.fifo
+      OIDC_ISSUER_URL: http://keycloak:8080/realms/jungle-gaming
+      OIDC_JWKS_URI: http://keycloak:8080/realms/jungle-gaming/protocol/openid-connect/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+
+  wagering-node-2:
+    build: .
+    container_name: jungle-wagering-node-2
+    profiles: ["cluster"]
+    ports:
+      - "3002:3000"
+    environment:
+      PORT: 3000
+      INSTANCE_ID: wagering-node-2
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: jungle
+      DB_PASSWORD: jungle_secret
+      DB_NAME: jungle_wagering
+      SQS_ENDPOINT: http://localstack:4566
+      SQS_WAGER_QUEUE_URL: http://localstack:4566/000000000000/wager-transactions.fifo
+      SQS_WAGER_DLQ_URL: http://localstack:4566/000000000000/wager-transactions-dlq.fifo
+      SQS_EVENTS_QUEUE_URL: http://localstack:4566/000000000000/wagering-events.fifo
+      OIDC_ISSUER_URL: http://keycloak:8080/realms/jungle-gaming
+      OIDC_JWKS_URI: http://keycloak:8080/realms/jungle-gaming/protocol/openid-connect/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+
+  wagering-node-3:
+    build: .
+    container_name: jungle-wagering-node-3
+    profiles: ["cluster"]
+    ports:
+      - "3003:3000"
+    environment:
+      PORT: 3000
+      INSTANCE_ID: wagering-node-3
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: jungle
+      DB_PASSWORD: jungle_secret
+      DB_NAME: jungle_wagering
+      SQS_ENDPOINT: http://localstack:4566
+      SQS_WAGER_QUEUE_URL: http://localstack:4566/000000000000/wager-transactions.fifo
+      SQS_WAGER_DLQ_URL: http://localstack:4566/000000000000/wager-transactions-dlq.fifo
+      SQS_EVENTS_QUEUE_URL: http://localstack:4566/000000000000/wagering-events.fifo
+      OIDC_ISSUER_URL: http://keycloak:8080/realms/jungle-gaming
+      OIDC_JWKS_URI: http://keycloak:8080/realms/jungle-gaming/protocol/openid-connect/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+
+volumes:
+  pgdata:
